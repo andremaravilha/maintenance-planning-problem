@@ -42,7 +42,7 @@ mpp::problem_t::~problem_t() {
 }
 
 
-std::tuple<mpp::objective_t, mpp::constraints_t>
+std::tuple<mpp::objective_t, mpp::risk_metric_t, mpp::constraints_t>
 mpp::problem_t::evaluate(const mpp::solution_t& solution) const {
 
     // Get some data from the problem
@@ -182,9 +182,11 @@ mpp::problem_t::evaluate(const mpp::solution_t& solution) const {
     expected_excess /= t_max;
 
     double alpha = data_[params::ALPHA].template get<double>();
-    double objetive = (alpha * mean_risk) + ((1 - alpha) * expected_excess);
+    double objective = (alpha * mean_risk) + ((1 - alpha) * expected_excess);
 
     // Return objective and constraints values
-    return {objetive, {exclusions_violation, resource_count_violation, resource_sum_violation}};
+    return { objective, 
+             {mean_risk, expected_excess}, 
+             {exclusions_violation, resource_count_violation, resource_sum_violation} };
 
 }

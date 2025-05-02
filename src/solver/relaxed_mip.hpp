@@ -8,7 +8,7 @@
 namespace mpp {
     namespace solver{
 
-        std::tuple<solution_t, objective_t, constraints_t>
+        std::tuple<solution_t, objective_t, risk_metric_t, constraints_t>
         relaxed_mip(const problem_t& problem);
 
     }

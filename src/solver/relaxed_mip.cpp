@@ -4,13 +4,12 @@
 #include <iostream>
 
 
-std::tuple<mpp::solution_t, mpp::objective_t, mpp::constraints_t>
+std::tuple<mpp::solution_t, mpp::objective_t, mpp::risk_metric_t, mpp::constraints_t>
 mpp::solver::relaxed_mip(const ::mpp::problem_t& problem) {
 
     // Create and configure a Gurobi environment
     GRBEnv env = GRBEnv(true);
-    //env.set(GRB_IntParam_OutputFlag, 0);
-    env.set(GRB_IntParam_OutputFlag, 1);
+    env.set(GRB_IntParam_OutputFlag, 0);
     env.start();
 
     // Create a Gurobi model
@@ -123,7 +122,7 @@ mpp::solver::relaxed_mip(const ::mpp::problem_t& problem) {
     }
 
     // Optimize the model
-    model.set(GRB_DoubleParam_MIPGap, 0.00);
+    //model.set(GRB_DoubleParam_MIPGap, 0.00);
     //model.set(GRB_DoubleParam_TimeLimit, MIP_TIME_LIMIT);
     model.set(GRB_IntParam_MIPFocus,  1);
     model.set(GRB_IntParam_Presolve,  1);  // 1 - conservative, 0 - off, 2 - aggressive
@@ -144,6 +143,6 @@ mpp::solver::relaxed_mip(const ::mpp::problem_t& problem) {
         }
     }
 
-    auto [objective_value, constraints_value] = problem.evaluate(solution);
-    return {solution, objective_value, constraints_value};
+    auto [objective_value, risk_metric_value, constraints_value] = problem.evaluate(solution);
+    return { solution, objective_value, risk_metric_value, constraints_value };
 }

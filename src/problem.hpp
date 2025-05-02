@@ -11,9 +11,8 @@ namespace mpp {
 using json = nlohmann::json;
 
 using solution_t = std::map<std::string, int>;
-
 using constraints_t = std::tuple<double, double, double>;
-
+using risk_metric_t = std::tuple<double, double>;
 using objective_t = double;
 
 namespace params {
@@ -33,21 +32,20 @@ namespace params {
     const std::string INTERVENTION_RESOURCE_WORKLOAD = "workload";
 }
 
-
 class problem_t {
     public:
     problem_t(const std::string& filename);
     ~problem_t();
 
-    std::tuple<objective_t, constraints_t>
+    std::tuple<objective_t, risk_metric_t, constraints_t>
     evaluate(const solution_t& solution) const;
 
     inline
-    std::tuple<objective_t, constraints_t>
+    std::tuple<objective_t, risk_metric_t, constraints_t>
     evaluate(const std::vector<int>& start_time) const;
 
     inline
-    std::tuple<objective_t, constraints_t>
+    std::tuple<objective_t, risk_metric_t, constraints_t>
     evaluate(const std::vector<int>& start_time, const std::vector<std::string>& intervention_name) const;
 
     inline
@@ -65,13 +63,13 @@ class problem_t {
 }
 
 
-std::tuple<mpp::objective_t, mpp::constraints_t>
+std::tuple<mpp::objective_t, mpp::risk_metric_t, mpp::constraints_t>
 mpp::problem_t::evaluate(const std::vector<int>& start_time) const {
     evaluate(start_time, intervention_names_);
 }
 
 
-std::tuple<mpp::objective_t, mpp::constraints_t>
+std::tuple<mpp::objective_t, mpp::risk_metric_t, mpp::constraints_t>
 mpp::problem_t::evaluate(const std::vector<int>& start_time, const std::vector<std::string>& intervention_name) const {
     solution_t solution;
     for (int i = 0; i < intervention_name.size(); ++i) {

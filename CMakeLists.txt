@@ -55,9 +55,10 @@ include_directories(
 # Source files
 set(SOURCES
     src/main.cpp
+    src/utils.cpp src/utils.hpp
     src/problem.cpp src/problem.hpp
     src/solver/relaxed_mip.cpp src/solver/relaxed_mip.hpp
-    src/solver/de.cpp src/solver/de.hpp
+    src/solver/differential_evolution.cpp src/solver/differential_evolution.hpp
 )
 
 # ==============================================================================
