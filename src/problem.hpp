@@ -90,4 +90,4 @@ mpp::problem_t::get_intervention_names() const {
 }
 
 
-#endif INCLUDE_MPP_PROBLEM_HPP_
+#endif // INCLUDE_MPP_PROBLEM_HPP_

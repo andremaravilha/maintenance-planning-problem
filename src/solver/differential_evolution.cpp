@@ -18,16 +18,15 @@ std::tuple<mpp::solution_t, mpp::objective_t, mpp::risk_metric_t, mpp::constrain
 mpp::solver::differential_evolution(const mpp::problem_t& problem, const differential_evolution_settings_t& settings) {
 
     // Get settings from the input parameters
-    const int pool_size = settings.pool_size;                       // Number of solutions in the pool
-    const double best_ratio = settings.best_ratio;                  // Proportion of using DE/best/1 mutation strategy
-    const double scaling_factor = settings.scaling_factor;          // Scaling factor for mutation
-    const double crossover_rho = settings.crossover_rho;            // Rho parameter for crossover recombination
-    const bool enable_hot_start = settings.enable_hot_start;        // Enable hot start from relaxed MIP solution
-    const bool enable_parallel = settings.enable_parallel;          // Enable parallel processing
-    const unsigned int seed = settings.seed;                        // Random seed for generating a random solution
-    const long long int max_iterations = settings.max_iterations;   // Maximum number of iterations for the DE algorithm
-    const double max_time = settings.max_time;                      // Maximum time for the DE algorithm in seconds
-    const bool verbose = settings.verbose;                          // Enable verbose output
+    const size_t pool_size = settings.pool_size;                // Number of solutions in the pool
+    const double best1_ratio = settings.best1_ratio;            // Proportion of using DE/best/1 mutation strategy
+    const double scaling_factor = settings.scaling_factor;      // Scaling factor for mutation
+    const double crossover_rho = settings.crossover_rho;        // Rho parameter for crossover recombination
+    const long long int timelimit = settings.timelimit;         // Limits the runtime in seconds
+    const long long int mip_timelimit = settings.mip_timelimit; // Limits the runtime of the MIP solver in seconds
+    const int threads = settings.threads;                       // Number of threads for parallel processing
+    const unsigned int seed = settings.seed;                    // Random seed for generating a random solution
+    const bool verbose = settings.verbose;                      // Enable verbose output
 
     // Start the timer
     cxxtimer::Timer timer(true);
@@ -42,7 +41,7 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
     std::vector<int> lb(interventions.size(), 1);
     std::vector<int> ub(interventions.size(), 1);
 
-    for (int i = 0; i < interventions.size(); ++i) {
+    for (size_t i = 0; i < interventions.size(); ++i) {
         const auto& intervention_data = data[mpp::params::INTERVENTIONS][interventions[i]];
         ub[i] = intervention_data[mpp::params::INTERVENTION_TMAX].template get<int>();
     }
@@ -65,7 +64,7 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
     
     // Create the probability distribution for exponential crossover operator
     std::vector<double> crossover_weights(n_var);       
-    for (int i = 1; i <= n_var; ++i) { 
+    for (size_t i = 1; i <= n_var; ++i) { 
         crossover_weights[i-1] = std::pow(crossover_rho, i-1) - std::pow(crossover_rho, i);
     }
     std::discrete_distribution<int> crossorver_dist(crossover_weights.begin(), crossover_weights.end());
@@ -77,18 +76,18 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
     // Pool of solutions
     std::vector<solution_t> pool_solutions; // Pool of solutions
     std::vector<fitness_t> pool_fitness;    // Fitness values of solutions
-    int idx_best = 0;                       // Index of the best solution
-    int idx_worst = 0;                      // Index of the worst solution
+    size_t idx_best = 0;                    // Index of the best solution
+    size_t idx_worst = 0;                   // Index of the worst solution
 
     // Reserve space in memory for better performance
     pool_solutions.reserve(pool_size);
     pool_fitness.reserve(pool_size);
 
     // Generate random solutions and evaluate them
-    for (int i = 0; i < pool_size; ++i) {
+    for (size_t i = 0; i < pool_size; ++i) {
 
         pool_solutions.emplace_back(n_var);
-        for (int j = 0; j < n_var; ++j) {
+        for (size_t j = 0; j < n_var; ++j) {
             pool_solutions[i][j] = rng() % (ub[j] - lb[j] + 1) + lb[j];
         }
 
@@ -99,15 +98,28 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
         if (pool_fitness[i] > pool_fitness[idx_worst]) idx_worst = i;
     }
 
-    // Hot start: replace the worst solution with a solution from the Relaxed MIP
-    if (enable_hot_start) {
-        if (verbose) std::cout << "Hot start solution enabled... ";
-        auto [hot_solution, hot_objective, hot_risk, hot_constraints] = mpp::solver::relaxed_mip(problem);
+    // Replace the worst solution with a solution from the Relaxed MIP
+    if (verbose) std::cout << "Solving the Relaxed MIP..." << std::endl;
+    try {
+
+        // Solve the MIP model
+        auto [hot_solution, hot_objective, hot_risk, hot_constraints] = mpp::solver::relaxed_mip(problem, mip_timelimit, threads, verbose);
         pool_fitness[idx_worst] = make_fitness(std::make_tuple(hot_objective, hot_risk, hot_constraints));
-        for (int j = 0; j < n_var; ++j) {
+        for (size_t j = 0; j < n_var; ++j) {
             pool_solutions[idx_worst][j] = hot_solution[interventions[j]];
         }
+
+        // Update the best solution if necessary
+        if (pool_fitness[idx_worst] < pool_fitness[idx_best]) {
+            idx_best = idx_worst;
+        }
+
         if (verbose) std::cout << "Done!"<< std::endl;
+    } catch (...) {
+        if (verbose) {
+            std::cout << "Failed to find a solution using the Relaxed MIP." << std::endl;
+            std::cout << "Continuing with the current pool of solutions." << std::endl;
+        }
     }
 
     // Pool of offspring solutions generated from the main pool of solutions
@@ -116,27 +128,27 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
 
     // Main loop
     long long int current_iteration = 0;
-    while (current_iteration < max_iterations) {
+    while (timer.count<cxxtimer::s>() < timelimit) {
 
         // Track the best solution in the offspring pool
-        int idx_best_offspring = 0;     // Index of the best offspring solution
+        size_t idx_best_offspring = 0;  // Index of the best offspring solution
         std::mutex mtx_best_offspring;  // Mutex for thread-safe access when updating the best offspring solution
 
         // Lambda function to generate offspring solutions
         auto generate_offspring_solution = [&](const int i) {
 
             // Mutation parameters
-            int idx1, idx2, idx3;
-            idx1 = (rng() / static_cast<double>(rng.max()) < best_ratio) ? idx_best : rng() % pool_size;
+            size_t idx1, idx2, idx3;
+            idx1 = (rng() / static_cast<double>(rng.max()) < best1_ratio) ? idx_best : rng() % pool_size;
             do { idx2 = rng() % pool_size; } while (idx2 == i || idx2 == idx1);
             do { idx3 = rng() % pool_size; } while (idx3 == i || idx3 == idx1 || idx3 == idx2);
 
             // Crossover parameters
-            int k1 = rng() % n_var;
-            int k2 = k1 + crossorver_dist(rng) + 1;
+            size_t k1 = rng() % n_var;
+            size_t k2 = k1 + crossorver_dist(rng) + 1;
 
             // Create a trial vector using mutation and crossover
-            for (int j = 0; j < n_var; ++j) {
+            for (size_t j = 0; j < n_var; ++j) {
                 if ((k2 < n_var && j >= k1 && j <= k2) || (k2 >= n_var && (j >= k1 || j <= (k2 % n_var)))) {
                     offspring_solutions[i][j] = mpp::utils::bounded_round(pool_solutions[idx1][j] + scaling_factor * (pool_solutions[idx2][j] - pool_solutions[idx3][j]), lb[j], ub[j]);
                 } else {
@@ -166,7 +178,7 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
         };
 
         // Create offspring solutions (in parallel, if enabled)
-        if (enable_parallel) {
+        if (threads > 1) {
             std::for_each(std::execution::par, indices.begin(), indices.end(), generate_offspring_solution);
         } else {
             std::for_each(std::execution::seq, indices.begin(), indices.end(), generate_offspring_solution);
@@ -195,7 +207,7 @@ mpp::solver::differential_evolution(const mpp::problem_t& problem, const differe
 
     // Decode the best solution found
     mpp::solution_t best_solution;
-    for (int j = 0; j < n_var; ++j) {
+    for (size_t j = 0; j < n_var; ++j) {
         best_solution[interventions[j]] = pool_solutions[idx_best][j];
     }
 

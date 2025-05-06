@@ -5,7 +5,7 @@
 
 
 std::tuple<mpp::solution_t, mpp::objective_t, mpp::risk_metric_t, mpp::constraints_t>
-mpp::solver::relaxed_mip(const ::mpp::problem_t& problem) {
+mpp::solver::relaxed_mip(const ::mpp::problem_t& problem, long long int timelimit, int threads, bool verbose) {
 
     // Create and configure a Gurobi environment
     GRBEnv env = GRBEnv(true);
@@ -122,12 +122,16 @@ mpp::solver::relaxed_mip(const ::mpp::problem_t& problem) {
     }
 
     // Optimize the model
-    //model.set(GRB_DoubleParam_MIPGap, 0.00);
-    //model.set(GRB_DoubleParam_TimeLimit, MIP_TIME_LIMIT);
-    model.set(GRB_IntParam_MIPFocus,  1);
-    model.set(GRB_IntParam_Presolve,  1);  // 1 - conservative, 0 - off, 2 - aggressive
-    model.set(GRB_IntParam_PrePasses, 1);  // to not spend too much time in pre-solve
-    model.set(GRB_IntParam_Method,  1);
+    model.set(GRB_IntParam_OutputFlag, (verbose ? 1 : 0));
+    model.set(GRB_DoubleParam_TimeLimit, (timelimit > 0 ? static_cast<double>(timelimit) : GRB_INFINITY));
+	model.set(GRB_IntParam_Threads, threads);
+    model.set(GRB_DoubleParam_MIPGap, 1E-5);
+    model.set(GRB_IntParam_MIPFocus, 1);    // Focus on finding feasible solutions
+    model.set(GRB_IntParam_Presolve, 1);    // Set pre-solve to conservative, to avoid spending too much time in pre-solve
+    model.set(GRB_IntParam_PrePasses, 1);   // Limit the number of pre-solve passes
+    model.set(GRB_IntParam_Method, 1);      // Use the dual simplex method
+    model.set(GRB_IntParam_Seed, 0);        // Use default seed 0
+    
     model.optimize();
 
     // Extract the solution

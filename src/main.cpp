@@ -14,22 +14,21 @@ int main(int argc, char** argv) {
     // Parse command line arguments using cxxopts
     cxxopts::Options options("mpp", "Solve the maintenance planning problem.");
     options.add_options()
-        ("instance", "Path to the instance file", cxxopts::value<std::string>())
-        ("output", "Path to the output solution file", cxxopts::value<std::string>())
-        ("pool_size", "Number of solutions in the pool", cxxopts::value<int>()->default_value("30"))
-        ("best_ratio", "Proportion of using DE/best/1 mutation strategy", cxxopts::value<double>()->default_value("0.5"))
-        ("scaling_factor", "Scaling factor for mutation", cxxopts::value<double>()->default_value("0.50"))
-        ("crossover_rho", "Rho parameter for crossover recombination", cxxopts::value<double>()->default_value("0.30"))
-        ("hot_start", "Enable hot start from relaxed MIP solution", cxxopts::value<bool>()->default_value("false"))
-        ("parallel", "Enable parallel processing", cxxopts::value<bool>()->default_value("false"))
-        ("seed", "Random seed for generating a random solution", cxxopts::value<unsigned int>()->default_value("0"))
-        ("max_iterations", "Maximum number of iterations", cxxopts::value<long long int>()->default_value("-1"))
-        ("max_time", "Maximum time in seconds", cxxopts::value<double>()->default_value("-1"))
-        ("v,verbose", "Enable verbose output", cxxopts::value<bool>()->default_value("false"))
-        ("h,help", "Show help message");
+        ("instance", "Path to the instance file.", cxxopts::value<std::string>())
+        ("output", "Path to the output solution file.", cxxopts::value<std::string>())
+        ("pool_size", "Number of solutions in the pool.", cxxopts::value<int>()->default_value("36"))
+        ("best1_ratio", "Probability of choosing DE/best/1 mutation strategy instead of DE/rand/1.", cxxopts::value<double>()->default_value("0.37"))
+        ("scaling_factor", "Scaling factor for mutation.", cxxopts::value<double>()->default_value("0.16"))
+        ("crossover_rho", "Rho parameter for crossover recombination.", cxxopts::value<double>()->default_value("0.30"))
+        ("timelimit", "Limits the runtime in seconds. Use -1 for no limit.", cxxopts::value<long long int>()->default_value("900"))
+        ("mip_timelimit", "Limits the runtime of the MIP solver in seconds. Use -1 for no limit.", cxxopts::value<long long int>()->default_value("-1"))
+        ("threads", "Number of threads for parallel processing.", cxxopts::value<int>()->default_value("2"))
+        ("seed", "Random seed for generating a random solution.", cxxopts::value<unsigned int>()->default_value("0"))
+        ("v,verbose", "Enable verbose output.", cxxopts::value<bool>()->default_value("false"))
+        ("h,help", "Show help message.");
 
         options.parse_positional({"instance", "output"});
-        options.positional_help("INSTANCE_FILE OUTPUT_FILE");
+        options.positional_help("<INSTANCE> <OUTPUT_FILE>");
 
     try {
 
@@ -47,30 +46,31 @@ int main(int argc, char** argv) {
         // Load DE settings from command line arguments
         mpp::solver::differential_evolution_settings_t settings;
         settings.pool_size = result["pool_size"].as<int>();
-        settings.best_ratio = result["best_ratio"].as<double>();
+        settings.best1_ratio = result["best1_ratio"].as<double>();
         settings.scaling_factor = result["scaling_factor"].as<double>();
         settings.crossover_rho = result["crossover_rho"].as<double>();
-        settings.enable_hot_start = result["hot_start"].as<bool>();
-        settings.enable_parallel = result["parallel"].as<bool>();
+        settings.timelimit = result["timelimit"].as<long long int>();
+        settings.mip_timelimit = result["mip_timelimit"].as<long long int>();
+        settings.threads = result["threads"].as<int>();
         settings.seed = result["seed"].as<unsigned int>();
-        settings.max_iterations = result["max_iterations"].as<long long int>();
-        settings.max_time = result["max_time"].as<double>();
         settings.verbose = result["verbose"].as<bool>();
 
-        // Set max_iterations and max_time properly
-        if (settings.max_iterations < 0) settings.max_iterations = std::numeric_limits<long long int>::max();
-        if (settings.max_time < 0) settings.max_time = std::numeric_limits<double>::max();
+        // Set timelimit properly
+        if (settings.timelimit < 0) settings.timelimit = std::numeric_limits<long long int>::max();
 
-        // Solve the problem using differential evolution
+        // Solve the problem
         auto [solution, objective, risk_metrics, constraints] = mpp::solver::differential_evolution(problem, settings);
+        auto [risk_mean, risk_excess] = risk_metrics;
         auto [constr_exclusions_count, constr_resource_count, constr_resource_sum] = constraints;
 
         // Print the results, if verbose is enabled
         if (settings.verbose) {
-            std::cout << "Objective: " << objective << std::endl;
-            std::cout << "Exclusions (violations): " << constr_exclusions_count << std::endl;
-            std::cout << "Resource count (violations): " << constr_resource_count << std::endl;
-            std::cout << "Resource sum (violations): " << constr_resource_sum << std::endl;
+            std::cout << "Objective Function: " << objective << std::endl;
+            std::cout << "Mean Risk: " << risk_mean << std::endl;
+            std::cout << "Excess Risk: " << risk_excess << std::endl;
+            std::cout << "Num. Exclusion Constraints Violations: " << constr_exclusions_count << std::endl;
+            std::cout << "Num. Resource Constraints Violations: " << constr_resource_count << std::endl;
+            std::cout << "Sum (excess and defict) Resource Violations: " << constr_resource_sum << std::endl;
         }
 
         // Export solution to a file

@@ -13,27 +13,25 @@ namespace mpp {
          * @brief Settings for the Differential Evolution (DE) solver.
          * @details This struct contains the parameters for the DE algorithm.
          * @param pool_size Number of solutions in the pool.
-         * @param best_ratio Proportion of using DE/best/1 mutation strategy. The remaining proportion is DE/rand/1.
+         * @param best1_ratio Probability of choosing DE/best/1 mutation strategy instead of DE/rand/1.
          * @param scaling_factor Scaling factor for mutation.
-         * @param crossover_rho Rho parameter for crossover recombination.constraints_t
-         * @param enable_hot_start Enable hot start from relaxed MIP solution.
-         * @param enable_parallel Enable parallel processing.
+         * @param crossover_rho Rho parameter for crossover recombination.
+         * @param timelimit Limits the runtime in seconds (default is 900 seconds, use -1 for no limit).
+         * @param mip_timelimit Limits the runtime of the MIP solver in seconds (-1 for no limit).
+         * @param threads Number of threads for parallel processing.
          * @param seed Random seed for generating a random solution.
-         * @param max_iterations Maximum number of iterations for the DE algorithm.
-         * @param max_time Maximum time for the DE algorithm in seconds.
          * @param verbose Enable verbose output.
          */
         struct differential_evolution_settings_t {
-            int pool_size = 30;
-            double best_ratio = 0.5;
-            double scaling_factor = 0.5;
+            size_t pool_size = 36;
+            double best1_ratio = 0.37;
+            double scaling_factor = 0.16;
             double crossover_rho = 0.3;
-            bool enable_hot_start = true;
-            bool enable_parallel = true;
+            long long int timelimit = 900;
+            long long int mip_timelimit = -1;
+            int threads = 2;
             unsigned int seed = 0;
-            long long int max_iterations = 1000;
-            double max_time = 60.0;
-            bool verbose = false;
+            bool verbose = true;
         };
 
 
